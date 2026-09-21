@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { apiGetRentProductReviews } from '@/lib/api';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '@/lib/apiConfig';
 
 function resolveImage(src = '') {
   if (!src) return '';

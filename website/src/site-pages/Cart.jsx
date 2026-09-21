@@ -7745,6 +7745,7 @@ import {
 import { useToast } from '@/contexts/ToastContext';
 import { useAuthModal } from '@/contexts/AuthModalContext';
 import { api } from '@/lib/axios';
+import { BACKEND_URL } from '@/lib/apiConfig';
 // import {
 //   Shield,
 //   Trash2,
@@ -9567,7 +9568,7 @@ const Cart = () => {
     if (!src) return 'https://via.placeholder.com/100?text=No+Image';
     return src.startsWith('http')
       ? src
-      : (process.env.NEXT_PUBLIC_API_URL || '') + src;
+      : `${BACKEND_URL}${src}`;
   };
 
   useEffect(() => {

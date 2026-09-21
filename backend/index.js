@@ -576,6 +576,8 @@ const allowedOrigins = [
   'http://localhost:3001',
   'https://rentnpay-admin.vercel.app',
   'https://rentnpay.vercel.app',
+  'http://rnp-admin.vercel.app',
+  'https://rnp-website.vercel.app',
   ...(process.env.CORS_ORIGINS || '')
     .split(',')
     .map((x) => x.trim())

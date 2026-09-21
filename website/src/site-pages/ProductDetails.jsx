@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { api } from '../lib/axios';
+import { BACKEND_URL } from '../lib/apiConfig';
 import { addToCart } from '../store/slices/cartSlice';
 
 const ProductDetails = () => {
@@ -83,7 +84,7 @@ const ProductDetails = () => {
   const imgSrc = (src) =>
     src.startsWith('http')
       ? src
-      : (process.env.NEXT_PUBLIC_API_URL || '') + src;
+      : `${BACKEND_URL}${src}`;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">

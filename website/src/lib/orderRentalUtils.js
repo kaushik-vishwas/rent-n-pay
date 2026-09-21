@@ -1,3 +1,5 @@
+import { BACKEND_URL } from './apiConfig';
+
 export function formatOrderDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -64,10 +66,7 @@ export function computeNextPaymentLabel(startDate, leaseEnd) {
 export function productImageUrl(path) {
   if (!path) return '';
   if (/^https?:\/\//i.test(path)) return path;
-  const base = (
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-  ).replace(/\/api\/?$/, '');
-  return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  return `${BACKEND_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
 export function normalizeStatus(status) {
