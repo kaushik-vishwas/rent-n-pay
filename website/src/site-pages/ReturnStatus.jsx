@@ -1,0 +1,348 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Truck,
+  FileSearch,
+  RefreshCw,
+  Calendar,
+  MapPin,
+  FileSearchCorner,
+} from 'lucide-react';
+import { apiGetMyOrderById } from '@/lib/api';
+import { primaryProduct } from '@/lib/orderRentalUtils';
+
+function orderReturnLine(order) {
+  return (order.products || []).find((line) => {
+    return Boolean(line?.returnRequest?.requestedAt);
+  });
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function formatPickupWindow(iso, slot) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const safeSlot = String(slot || '').trim();
+  return `${d.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })}${safeSlot ? `, ${safeSlot}` : ''}`;
+}
+
+export default function ReturnStatus() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('orderId');
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!orderId) {
+      setLoading(false);
+      setError('Missing order.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    apiGetMyOrderById(orderId)
+      .then((res) => setOrder(res.data))
+      .catch((err) => {
+        setOrder(null);
+        setError(
+          err.response?.data?.message || 'Failed to load return status.',
+        );
+      })
+      .finally(() => setLoading(false));
+  }, [orderId]);
+
+  const rrLine = order ? orderReturnLine(order) : null;
+  const rr = rrLine?.returnRequest;
+  const product = useMemo(() => {
+    if (!order) return null;
+    const p = rrLine?.product;
+    if (p && typeof p === 'object') return p;
+    return primaryProduct(order);
+  }, [order, rrLine]);
+
+  const title = product?.productName || product?.title || 'Rental item';
+  const retBadge = order
+    ? `RET-${String(order._id || '')
+        .slice(-4)
+        .toUpperCase()}`
+    : '';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F4F6FB] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#FF6F00] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !order || !rr?.requestedAt) {
+    return (
+      <div className="min-h-screen bg-[#F4F6FB] py-10 px-4">
+        <div className="max-w-2xl mx-auto rounded-xl border border-red-200 bg-red-50 p-6 text-red-800 text-sm">
+          {error ||
+            'Return details were not found for this order. Open it from My Orders after scheduling a pickup.'}
+        </div>
+        <div className="max-w-2xl mx-auto mt-4">
+          <Link
+            href="/orders"
+            className="text-sm font-medium text-[#FF6F00] hover:underline inline-flex items-center gap-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Orders
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const pickupIso = rr.vendorPickupDate || rr.pickupDate;
+  const hasPickupScheduled = Boolean(rr.pickupScheduledAt);
+  const hasQcCompleted = Boolean(rr.qcCompletedAt);
+  const hasRefundInitiated = Boolean(rr.refundInitiatedAt);
+
+  return (
+    <div className="min-h-screen bg-[#F4F6FB] py-8 px-4 sm:px-6 pb-16">
+      <div className="max-w-2xl mx-auto">
+        <Link
+          href="/my-account?tab=orders"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#64748B] hover:text-black mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Orders
+        </Link>
+
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-black">
+              Return Status
+            </h1>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Track your return and refund status for{' '}
+              <span className="font-semibold text-black">{title}</span>
+            </p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-[#DBEAFE] text-[#1447E6] px-3 py-1.5 text-xs font-semibold">
+            #{retBadge}
+          </span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-8">
+          <ol className="relative space-y-0">
+            <li className="relative pb-8">
+              <div className="absolute left-[17px] top-10 bottom-0 w-0.5 bg-emerald-500" />
+              <div className="flex gap-4">
+                <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00C950] text-white">
+                  <CheckCircle2 className="w-5 h-5 text-semibold" />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p className="font-bold text-black">Request Placed</p>
+                  <p className="text-sm font-medium text-[#00C950]">
+                    Completed
+                  </p>
+                  <p className="mt-2 text-sm text-[#64748B] flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#64748B] shrink-0" />
+                    {formatDateTime(rr.requestedAt)}
+                  </p>
+                  <p className="mt-1 text-sm text-[#64748B]">
+                    Your return request has been successfully submitted.
+                  </p>
+                </div>
+              </div>
+            </li>
+
+            <li className="relative pb-8">
+              <div
+                className={`absolute left-[17px] top-10 bottom-0 w-0.5 ${
+                  hasPickupScheduled ? 'bg-blue-400' : 'bg-gray-200'
+                }`}
+              />
+              <div className="flex gap-4">
+                <div
+                  className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    hasPickupScheduled
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-[#64748B]'
+                  }`}
+                >
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p
+                    className={`font-bold ${hasPickupScheduled ? 'text-black' : 'text-[#64748B]'}`}
+                  >
+                    Pickup Scheduled
+                  </p>
+                  <p
+                    className={`text-sm font-medium ${
+                      hasPickupScheduled ? 'text-blue-600' : 'text-[#64748B]'
+                    }`}
+                  >
+                    {hasPickupScheduled ? 'In Progress' : 'Pending'}
+                  </p>
+                  {hasPickupScheduled ? (
+                    <div className="mt-3 rounded-xl bg-[#EFF6FF]  p-4 text-sm text-[#1C398E] space-y-2">
+                      <p className="flex items-start gap-2">
+                        <Calendar className="w-4 h-4 text-[#1C398E] shrink-0 mt-0.5" />
+                        <span className="font-semibold">
+                          <span className="font-semibold">Scheduled for: </span>
+                          {formatPickupWindow(pickupIso, rr.vendorPickupTime)}
+                        </span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-[#1C398E] shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-semibold">Pickup from: </span>
+                          {rr.vendorPickupAddress ||
+                            order.address ||
+                            'Your delivery address on file'}
+                        </span>
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-[#64748B]">
+                      Vendor will schedule your pickup date and time shortly.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </li>
+
+            <li className="relative pb-8">
+              <div
+                className={`absolute left-[17px] top-10 bottom-0 w-0.5 ${
+                  hasQcCompleted ? 'bg-emerald-400' : 'bg-gray-200'
+                }`}
+              />
+              <div className="flex gap-4">
+                <div
+                  className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    hasQcCompleted
+                      ? 'bg-[#00A63E] text-white'
+                      : 'bg-gray-200 text-[#64748B]'
+                  }`}
+                >
+                  <FileSearchCorner className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p
+                    className={`font-bold ${hasQcCompleted ? 'text-black' : 'text-[#64748B]'}`}
+                  >
+                    Quality Check (QC)
+                  </p>
+                  <p
+                    className={`text-sm font-medium ${
+                      hasQcCompleted ? 'text-[#00A63E]' : 'text-[#64748B]'
+                    }`}
+                  >
+                    {hasQcCompleted ? 'Completed' : 'Pending'}
+                  </p>
+                  <p className="mt-2 text-sm text-[#64748B]">
+                    Our technician will verify the item condition and assess any
+                    damage.
+                  </p>
+                  {hasQcCompleted ? (
+                    <p className="mt-2 text-xs text-[#00A63E]">
+                      Completed on {formatDateTime(rr.qcCompletedAt)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </li>
+
+            <li className="relative">
+              <div className="flex gap-4">
+                <div
+                  className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    hasRefundInitiated
+                      ? 'bg-[#00A63E] text-white'
+                      : 'bg-gray-200 text-[#64748B]'
+                  }`}
+                >
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p
+                    className={`font-bold ${
+                      hasRefundInitiated ? 'text-black' : 'text-[#64748B]'
+                    }`}
+                  >
+                    Refund Initiated
+                  </p>
+                  <p
+                    className={`text-sm font-medium ${
+                      hasRefundInitiated ? 'text-[#00A63E]' : 'text-[#64748B]'
+                    }`}
+                  >
+                    {hasRefundInitiated ? 'Completed' : 'Pending'}
+                  </p>
+                  {hasRefundInitiated ? (
+                    <>
+                      <p className="mt-2 text-sm text-[#64748B]">
+                        Final refund amount initiated:{' '}
+                        <span className="font-semibold text-black">
+                          ₹
+                          {Number(rr.finalRefundAmount || 0).toLocaleString(
+                            'en-IN',
+                          )}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs text-[#64748B]">
+                        Damage deduction: ₹
+                        {Number(rr.damageDeduction || 0).toLocaleString(
+                          'en-IN',
+                        )}{' '}
+                        • Cleaning fees: ₹
+                        {Number(rr.cleaningFees || 0).toLocaleString('en-IN')}
+                      </p>
+                      <p className="mt-1 text-xs text-[#00A63E]">
+                        Initiated on {formatDateTime(rr.refundInitiatedAt)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm text-[#64748B]">
+                      Deposit will be refunded to your original payment source
+                      within 7 days of QC completion.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <p className="mt-10 text-center text-sm text-[#64748B]">
+          Need help with your return?{' '}
+          <a
+            href="mailto:support@rentnpay.com"
+            className="font-semibold text-[#FF6F00] hover:underline"
+          >
+            Contact Support
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}

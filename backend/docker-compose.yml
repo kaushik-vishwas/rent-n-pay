@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  backend:
+    build: .
+    container_name: delicod-backend
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "5000:5000"   # add this so host can reach backend directly

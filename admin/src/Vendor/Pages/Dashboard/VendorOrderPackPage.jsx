@@ -1,0 +1,2428 @@
+// 'use client';
+
+// import { useCallback, useEffect, useMemo, useState } from 'react';
+// import Link from 'next/link';
+// import { useRouter, useSearchParams } from 'next/navigation';
+// import { useSelector } from 'react-redux';
+// import {
+//   Package,
+//   CheckCircle2,
+//   Circle,
+//   FileText,
+//   Tag,
+//   Printer,
+//   AlertTriangle,
+//   Info,
+//   Truck,
+//   AlertCircle,
+// } from 'lucide-react';
+// import { toast } from 'react-toastify';
+// import {
+//   apiGetVendorOrderPack,
+//   apiVendorMarkOrderShipped,
+// } from '@/service/api';
+// import VendorSidebar from '../../Components/Common/VendorSidebar';
+// import VendorTopBar from '../../Components/Common/VendorTopBar';
+// import VendorAssignDeliveryModal from '../../Components/Modals/VendorAssignDeliveryModal';
+// import Alert from '@/assets/icons/alret.png';
+// import InventoryUpdated from '@/assets/icons/inventory-updtd.png';
+
+// function productImageUrl(path) {
+//   if (!path) return '';
+//   if (/^https?:\/\//i.test(path)) return path;
+//   const base = (
+//     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+//   ).replace(/\/api\/?$/, '');
+//   return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+// }
+
+// // function orderDisplayRef(order) {
+// //   const y = order?.createdAt
+// //     ? new Date(order.createdAt).getFullYear()
+// //     : new Date().getFullYear();
+// //   const tail = String(order?._id || '')
+// //     .replace(/[^a-fA-F0-9]/g, '')
+// //     .slice(-2)
+// //     .toUpperCase();
+// //   return `${y}-${tail || '00'}`;
+// // }
+
+// function orderDisplayRef(order) {
+//   return String(order?.orderNumber || 0).padStart(4, '0');
+// }
+
+// function formatSku(product) {
+//   if (!product || typeof product === 'string') return '—';
+//   const id = String(product._id || '').replace(/[^a-fA-F0-9]/g, '');
+//   const tail = id.slice(-6).toUpperCase();
+//   return tail ? `PRD-${tail}` : '—';
+// }
+
+// function lineMatchesVendor(line, vendorIdStr) {
+//   const p = line?.product;
+//   if (!p || typeof p === 'string') return false;
+//   const vid = p.vendorId?._id ?? p.vendorId;
+//   return String(vid) === vendorIdStr;
+// }
+
+// function shortCustomerName(name) {
+//   const parts = String(name || '')
+//     .trim()
+//     .split(/\s+/);
+//   if (!parts[0]) return 'Customer';
+//   if (parts.length === 1) return parts[0];
+//   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+// }
+
+// const TASKS = [
+//   {
+//     key: 'verifyQuality',
+//     title: 'Verify item quality',
+//     detail: 'Check for scratches, damage, or defects before packing.',
+//   },
+//   {
+//     key: 'packSecurely',
+//     title: 'Pack item securely',
+//     detail: 'Use bubble wrap, foam, or appropriate packaging material.',
+//   },
+//   {
+//     key: 'labelPasted',
+//     title: 'Paste shipping label',
+//     detail: 'Affix the printed label clearly on the package.',
+//   },
+// ];
+
+// function openPrintWindow(title, innerHtml) {
+//   const w = window.open('', '_blank');
+//   if (!w) {
+//     toast.error('Allow pop-ups to print.');
+//     return;
+//   }
+//   w.document
+//     .write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title>
+//     <style>
+//       body { font-family: system-ui, sans-serif; padding: 24px; color: #111; }
+//       h1 { font-size: 18px; margin-bottom: 8px; }
+//       .muted { color: #666; font-size: 13px; }
+//       table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+//       th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+//     </style></head><body>${innerHtml}</body></html>`);
+//   w.document.close();
+//   w.focus();
+//   w.print();
+// }
+
+// export default function VendorOrderPackPage({ orderId }) {
+//   const router = useRouter();
+//   const { user, token } = useSelector((s) => s.vendor);
+//   const vendorIdStr = String(user?.id || user?._id || '');
+
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState('');
+//   const [order, setOrder] = useState(null);
+//   const [vendorGstin, setVendorGstin] = useState('');
+//   const [kycBlocked, setKycBlocked] = useState(false);
+//   const [kycBlockedMessage, setKycBlockedMessage] = useState('');
+//   const [checklist, setChecklist] = useState({
+//     verifyQuality: false,
+//     packSecurely: false,
+//     labelPasted: false,
+//   });
+//   const [assignOpen, setAssignOpen] = useState(false);
+//   const [submitting, setSubmitting] = useState(false);
+//   const searchParams = useSearchParams();
+//   const productId = searchParams.get('productId') || '';
+
+//   const getToken = useCallback(() => {
+//     return (
+//       token ||
+//       (typeof window !== 'undefined'
+//         ? localStorage.getItem('vendorToken')
+//         : null)
+//     );
+//   }, [token]);
+
+//   const load = useCallback(async () => {
+//     const auth = getToken();
+//     if (!auth || !orderId) {
+//       setError('Please log in again.');
+//       setLoading(false);
+//       return;
+//     }
+//     setLoading(true);
+//     setError('');
+//     try {
+//       const res = await apiGetVendorOrderPack(orderId, auth, productId);
+//       const o = res.data?.order;
+//       setOrder(o);
+//       setVendorGstin(res.data?.vendorGstin || '');
+//       setKycBlocked(Boolean(res.data?.kycBlocked));
+//       setKycBlockedMessage(res.data?.kycBlockedMessage || '');
+//       const fc = o?.vendorFulfillment?.packingChecklist;
+//       if (fc) {
+//         setChecklist({
+//           verifyQuality: !!fc.verifyQuality,
+//           packSecurely: !!fc.packSecurely,
+//           labelPasted: !!fc.labelPasted,
+//         });
+//       }
+//     } catch (e) {
+//       const msg = e?.response?.data?.message || e?.message || 'Failed to load';
+//       const code = e?.response?.data?.code;
+//       setOrder(null);
+//       setError(msg);
+//       if (code === 'INVALID_STATUS' || e?.response?.status === 400) {
+//         toast.error(msg);
+//         router.replace('/vendor/orders');
+//       }
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [orderId, getToken, router, productId]);
+
+//   useEffect(() => {
+//     load();
+//   }, [load]);
+
+//   const myLines = useMemo(() => {
+//     if (!order || !vendorIdStr) return [];
+//     return (order.products || []).filter((l) =>
+//       lineMatchesVendor(l, vendorIdStr),
+//     );
+//   }, [order, vendorIdStr]);
+
+//   const completedCount = useMemo(
+//     () => TASKS.filter((t) => checklist[t.key]).length,
+//     [checklist],
+//   );
+
+//   const allChecked = completedCount === TASKS.length;
+
+//   const customerName = order?.user?.fullName || order?.name || 'Customer';
+//   const orderRef = order ? orderDisplayRef(order) : '';
+//   const cityHint =
+//     myLines[0]?.product?.logisticsVerification?.city?.trim() || '';
+//   const deliveryLine = cityHint
+//     ? `Delivery to: ${cityHint} · ${String(order?.address || '').slice(0, 64)}`
+//     : `Delivery to: ${String(order?.address || '—').slice(0, 80)}`;
+
+//   const printInvoice = () => {
+//     if (!order) return;
+//     const rows = myLines
+//       .map((line) => {
+//         const p = line.product;
+//         const n = p && typeof p === 'object' ? p.productName : 'Item';
+//         return `<tr><td>${n}</td><td>${formatSku(p)}</td><td>${line.quantity ?? 1}</td></tr>`;
+//       })
+//       .join('');
+//     openPrintWindow(
+//       'Tax Invoice',
+//       `<h1>Tax invoice</h1>
+//       <p class="muted">Order #ORD-${orderRef} · ${new Date(order.createdAt).toLocaleDateString('en-IN')}</p>
+//       <p><strong>Vendor GSTIN:</strong> ${vendorGstin || '—'}</p>
+//       <p><strong>Customer:</strong> ${customerName}</p>
+//       <table><thead><tr><th>Item</th><th>SKU</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>
+//       <p class="muted" style="margin-top:24px">RentNPay — rental order summary (not a legal tax invoice unless configured by your CA).</p>`,
+//     );
+//   };
+
+//   const printLabel = () => {
+//     if (!order) return;
+//     openPrintWindow(
+//       'Shipping label',
+//       `<h1>Shipping label</h1>
+//       <p class="muted">Order #ORD-${orderRef}</p>
+//       <p><strong>Ship to</strong><br/>${customerName}<br/>${String(order.address || '').replace(/\n/g, '<br/>')}</p>
+//       <p><strong>Phone</strong> ${order.phone || '—'}</p>
+//       <p style="margin-top:32px;font-size:11px;color:#666">Barcode / tracking: attach partner label when available.</p>`,
+//     );
+//   };
+
+//   const toggleTask = (key) => {
+//     setChecklist((c) => ({ ...c, [key]: !c[key] }));
+//   };
+
+//   // const handleMarkShipped = async ({
+//   //   method,
+//   //   driverName,
+//   //   driverPhone,
+//   //   vehicleNumber,
+//   //   packingChecklist: pc,
+//   // }) => {
+//   //   const auth = getToken();
+//   //   if (!auth) {
+//   //     toast.error('Please log in again.');
+//   //     return;
+//   //   }
+//   //   setSubmitting(true);
+//   //   try {
+//   //     await apiVendorMarkOrderShipped(
+//   //       orderId,
+//   //       {
+//   //         packingChecklist: pc,
+//   //         delivery: {
+//   //           method,
+//   //           driverName,
+//   //           driverPhone,
+//   //           vehicleNumber,
+//   //         },
+//   //       },
+//   //       auth,
+//   //     );
+//   //     toast.success('Order marked as shipped.');
+//   //     if (typeof window !== 'undefined') {
+//   //       window.dispatchEvent(new CustomEvent('vendor-orders-changed'));
+//   //     }
+//   //     setAssignOpen(false);
+//   //     router.push('/vendor/orders');
+//   //   } catch (e) {
+//   //     toast.error(e?.response?.data?.message || 'Could not mark shipped');
+//   //   } finally {
+//   //     setSubmitting(false);
+//   //   }
+//   // };
+
+//   const handleMarkShipped = async ({
+//     method,
+//     driverName,
+//     driverPhone,
+//     vehicleNumber,
+//     packingChecklist: pc,
+//   }) => {
+//     const auth = getToken();
+//     if (!auth) {
+//       toast.error('Please log in again.');
+//       return;
+//     }
+//     setSubmitting(true);
+//     try {
+//       await apiVendorMarkOrderShipped(
+//         orderId,
+//         {
+//           packingChecklist: pc,
+//           delivery: {
+//             method,
+//             driverName,
+//             driverPhone,
+//             vehicleNumber,
+//           },
+//           productId, // ← ADD THIS ONE LINE
+//         },
+//         auth,
+//       );
+//       toast.success('Order marked as shipped.');
+//       if (typeof window !== 'undefined') {
+//         window.dispatchEvent(new CustomEvent('vendor-orders-changed'));
+//       }
+//       setAssignOpen(false);
+//       router.push('/vendor/orders');
+//     } catch (e) {
+//       toast.error(e?.response?.data?.message || 'Could not mark shipped');
+//     } finally {
+//       setSubmitting(false);
+//     }
+//   };
+//   return (
+//     <div className="flex h-screen bg-[#f3f5f9] overflow-hidden">
+//       <VendorSidebar />
+//       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+//         <VendorTopBar />
+//         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+//           <div className="max-w-3xl mx-auto space-y-4">
+//             <div className="flex flex-wrap items-center gap-3">
+//               <Link
+//                 href="/vendor/orders"
+//                 className="text-sm font-medium text-[#F97316] hover:underline"
+//               >
+//                 ← Back to orders
+//               </Link>
+//             </div>
+
+//             {loading ? (
+//               <div className="flex justify-center py-20">
+//                 <div className="w-10 h-10 border-4 border-[#F97316] border-t-transparent rounded-full animate-spin" />
+//               </div>
+//             ) : error && !order ? (
+//               <div className="bg-white rounded-2xl border border-red-200 p-6 text-red-600 text-sm">
+//                 {error}
+//               </div>
+//             ) : order ? (
+//               <>
+//                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+//                   <div className="flex flex-wrap items-start justify-between gap-3">
+//                     {/* <div className="flex items-start gap-3">
+//                       <div className="w-11 h-11 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
+//                         <Package className="w-6 h-6" />
+//                       </div>
+
+//                       <div>
+//                         <h1 className="text-xl font-bold text-gray-900">
+//                           #ORD-{orderRef}
+//                         </h1>
+//                         <p className="text-sm text-gray-500 mt-0.5">
+//                           Processing &amp; packing
+//                         </p>
+//                       </div>
+//                     </div> */}
+//                     <div className="flex items-start gap-3">
+//                       <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white">
+//                         <Package className="w-6 h-6" />
+//                       </div>
+
+//                       <div className="flex flex-col gap-1">
+//                         {/* badge on top */}
+//                         <p className="text-sm text-gray-500 mt-0.5">
+//                           Processing &amp; packing
+//                         </p>
+//                         {/* order id */}
+//                         <h1 className="text-xl font-bold text-gray-900">
+//                           #ORD-{orderRef}
+//                         </h1>
+//                       </div>
+//                     </div>
+//                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+//                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+//                       PROCESSING · In progress
+//                     </span>
+//                   </div>
+//                   {kycBlocked ? (
+//                     <div className="mt-4 rounded-xl gap-1 flex flex-row bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+//                       <div className="flex items-start gap-2">
+//                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+//                         <span>
+//                           <span className="font-semibold block">
+//                             Delivery Blocked
+//                           </span>
+//                           <span className="block text-xs text-red-700 mt-1">
+//                             {kycBlockedMessage}
+//                           </span>
+//                         </span>
+//                       </div>
+//                     </div>
+//                   ) : (
+//                     <div className="mt-4 rounded-xl gap-1 flex flex-row bg-[#EFF6FF] border border-[#BEDBFF] px-4 py-3 text-sm text-[#193CB8]">
+//                       <div className="flex items-center gap-2 mb-1">
+//                         <img src={Alert.src} alt="alert" className="w-4 h-4" />
+//                         <p className="text-sm font-semibold tracking-wide">
+//                           Next step:
+//                         </p>
+//                       </div>
+
+//                       <p className="text-sm">
+//                         Pack items and attach documents.
+//                       </p>
+//                     </div>
+//                   )}
+//                 </div>
+
+//                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+//                   <h2 className="text-lg font-semibold text-black">
+//                     Packing checklist
+//                   </h2>
+//                   <p className="text-sm text-gray-500 mt-0.5">
+//                     Complete all tasks before marking as packed.
+//                   </p>
+//                   <ul className="mt-4 space-y-3">
+//                     {TASKS.map((task, idx) => {
+//                       const done = checklist[task.key];
+//                       return (
+//                         <li key={task.key}>
+//                           <button
+//                             type="button"
+//                             onClick={() => toggleTask(task.key)}
+//                             className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-colors ${
+//                               done
+//                                 ? 'border-emerald-300 bg-emerald-50/40'
+//                                 : 'border-gray-200 hover:border-gray-300'
+//                             }`}
+//                           >
+//                             {/* <div className="flex items-start gap-3">
+//                               {done ? (
+//                                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+//                               ) : (
+//                                 <Circle className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />
+//                               )}
+//                               <div>
+//                                 <p className="font-semibold text-gray-900 text-sm">
+//                                   Task {idx + 1}/{TASKS.length} — {task.title}
+//                                 </p>
+//                                 <p className="text-xs text-gray-500 mt-1">
+//                                   {task.detail}
+//                                 </p>
+//                               </div>
+//                             </div> */}
+
+//                             <div className="flex items-start gap-3">
+//                               {done ? (
+//                                 <div className="w-5 h-5 rounded-md bg-[#008236] flex items-center justify-center shrink-0 mt-0.5">
+//                                   <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+//                                 </div>
+//                               ) : (
+//                                 <Circle className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />
+//                               )}
+
+//                               <div>
+//                                 <p className="text-xs font-semibold text-gray-500">
+//                                   Task {idx + 1}/{TASKS.length}
+//                                 </p>
+
+//                                 <p
+//                                   className={`font-semibold text-sm ${
+//                                     done
+//                                       ? 'text-[#008236] line-through decoration-[#008236]'
+//                                       : 'text-gray-900'
+//                                   }`}
+//                                 >
+//                                   {task.title}
+//                                 </p>
+
+//                                 <p className="text-xs text-gray-500 mt-1">
+//                                   {task.detail}
+//                                 </p>
+//                               </div>
+//                             </div>
+//                           </button>
+//                         </li>
+//                       );
+//                     })}
+//                   </ul>
+//                   {/* <div className="mt-4">
+//                     <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+//                       <div
+//                         className="h-full rounded-full bg-blue-600 transition-all"
+//                         style={{
+//                           width: `${(completedCount / TASKS.length) * 100}%`,
+//                         }}
+//                       />
+//                     </div>
+//                     <p className="text-xs text-gray-500 mt-2 text-center">
+//                       {completedCount}/{TASKS.length} completed
+//                     </p>
+//                   </div> */}
+//                   <div className="mt-4">
+//                     {/* Label row above the bar */}
+//                     <div className="flex items-center justify-between mb-1">
+//                       <p className="text-xs font-semibold text-gray-500">
+//                         Progress
+//                       </p>
+//                       <p className="text-xs font-semibold text-black">
+//                         {completedCount}/{TASKS.length} completed
+//                       </p>
+//                     </div>
+
+//                     <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+//                       <div
+//                         className="h-full rounded-full bg-blue-600 transition-all"
+//                         style={{
+//                           width: `${(completedCount / TASKS.length) * 100}%`,
+//                         }}
+//                       />
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6 space-y-4">
+//                   <div>
+//                     <h2 className="text-lg font-semibold text-black">
+//                       Required documents
+//                     </h2>
+//                     <p className="text-sm text-gray-500 mt-0.5">
+//                       Print and attach these documents to the package.
+//                     </p>
+//                   </div>
+
+//                   {/* <div className="flex items-start gap-3 flex-1">
+//                       <FileText className="w-8 h-8 text-[#F97316] bg-[#FFEDD4] rounded-lg p-1.5 shrink-0" />
+//                       <div>
+//                         <p className="font-semibold text-gray-900">
+//                           Tax invoice
+//                         </p>
+//                         <p className="text-xs text-gray-500 mt-0.5">
+//                           GST-compliant summary with line items.
+//                         </p>
+//                         <p className="text-xs text-gray-600 mt-2">
+//                           Vendor GSTIN:{' '}
+//                           <span className="font-mono">
+//                             {vendorGstin || '—'}
+//                           </span>
+//                         </p>
+//                         <p className="text-xs text-gray-600">
+//                           Customer: {customerName}
+//                         </p>
+//                       </div>
+//                     </div> */}
+//                   {/* <div className="rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+//                     <div className="flex items-start gap-3 flex-1">
+//                       <FileText className="w-8 h-8 text-[#F97316] bg-[#FFEDD4] rounded-lg p-1.5 shrink-0" />
+
+//                       <div className="w-full">
+//                         <p className="font-semibold text-gray-900">
+//                           Tax invoice
+//                         </p>
+
+//                         <p className="text-xs text-gray-500 mt-0.5">
+//                           GST-compliant summary with line items.
+//                         </p>
+
+//                         <div className="border-t border-gray-200 my-2"></div>
+
+//                         <div className="flex items-start gap-36 text-xs">
+//                           <div>
+//                             <p className="text-gray-500">Vendor GSTIN</p>
+//                             <p className="font-semibold text-gray-900 font-mono">
+//                               {vendorGstin || '—'}
+//                             </p>
+//                           </div>
+
+//                           <div>
+//                             <p className="text-gray-500">Customer</p>
+//                             <p className="font-semibold text-gray-900">
+//                               {customerName}
+//                             </p>
+//                           </div>
+//                         </div>
+//                       </div>
+//                     </div>
+//                     <button
+//                       type="button"
+//                       onClick={printInvoice}
+//                       className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#F97316] text-white text-sm font-semibold hover:bg-[#e56400] shrink-0"
+//                     >
+//                       <Printer className="w-4 h-4" />
+//                       Print PDF
+//                     </button>
+//                   </div> */}
+//                   <div className="rounded-xl border border-gray-200 p-4 flex flex-col gap-4">
+//                     <div className="flex items-start gap-3">
+//                       <FileText className="w-8 h-8 text-[#F97316] bg-[#FFEDD4] rounded-lg p-1.5 shrink-0" />
+
+//                       <div className="w-full">
+//                         {/* Top row responsive */}
+//                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+//                           <div>
+//                             <p className="font-semibold text-gray-900">
+//                               Tax invoice
+//                             </p>
+
+//                             <p className="text-xs text-gray-500 mt-0.5">
+//                               GST-compliant summary with line items.
+//                             </p>
+//                           </div>
+
+//                           <button
+//                             type="button"
+//                             onClick={printInvoice}
+//                             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#F97316] text-white text-sm font-semibold hover:bg-[#e56400] shrink-0 w-full sm:w-auto"
+//                           >
+//                             <Printer className="w-4 h-4" />
+//                             Print PDF
+//                           </button>
+//                         </div>
+
+//                         {/* divider */}
+//                         <div className="border-t border-gray-200 my-3"></div>
+
+//                         {/* GSTIN + Customer responsive */}
+//                         <div className="flex flex-col sm:flex-row sm:items-start sm:gap-16 gap-3 text-xs">
+//                           <div>
+//                             <p className="text-gray-500">Vendor GSTIN</p>
+//                             <p className="font-semibold text-gray-900 font-mono">
+//                               {vendorGstin || '—'}
+//                             </p>
+//                           </div>
+
+//                           <div>
+//                             <p className="text-gray-500">Customer</p>
+//                             <p className="font-semibold text-gray-900">
+//                               {customerName}
+//                             </p>
+//                           </div>
+//                         </div>
+//                       </div>
+//                     </div>
+//                   </div>
+//                   {/* <div className="rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+//                     <div className="flex items-start gap-3 flex-1">
+//                       <Tag className="w-8 h-8 text-[#3B82F6] bg-[#DBEAFE] rounded-lg p-1.5 shrink-0" />
+//                       <div>
+//                         <p className="font-semibold text-gray-900">
+//                           Shipping label
+//                         </p>
+//                         <p className="text-xs text-gray-500 mt-0.5">
+//                           Barcode label with delivery address
+//                         </p>
+//                       </div>
+//                     </div>
+//                     <button
+//                       type="button"
+//                       onClick={printLabel}
+//                       className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shrink-0"
+//                     >
+//                       <Printer className="w-4 h-4" />
+//                       Print label
+//                     </button>
+//                   </div> */}
+//                   {/* <div className="flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-100 px-3 py-2.5 text-xs text-orange-900">
+//                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+//                     Important: paste the label visibly on the package for easy
+//                     scanning by the delivery partner.
+//                   </div> */}
+//                   <div className="rounded-xl border border-gray-200 p-4 flex flex-col gap-4">
+//                     <div className="flex items-start gap-3">
+//                       <Tag className="w-8 h-8 text-[#3B82F6] bg-[#DBEAFE] rounded-lg p-1.5 shrink-0" />
+
+//                       <div className="w-full">
+//                         {/* top row */}
+//                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+//                           <div>
+//                             <p className="font-semibold text-gray-900">
+//                               Shipping label
+//                             </p>
+//                             <p className="text-xs text-gray-500 mt-0.5">
+//                               Barcode label with delivery address
+//                             </p>
+//                           </div>
+
+//                           <button
+//                             type="button"
+//                             onClick={printLabel}
+//                             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#3B82F6] text-white text-sm font-semibold hover:bg-blue-700 shrink-0 w-full sm:w-auto"
+//                           >
+//                             <Printer className="w-4 h-4" />
+//                             Print label
+//                           </button>
+//                         </div>
+
+//                         {/* divider */}
+//                         <div className="border-t border-gray-200 my-3"></div>
+
+//                         {/* bottom content (you can add anything here later) */}
+//                         <div className="text-xs flex gap-1 text-[#973C00]">
+//                           <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+//                           <span>
+//                             <span className="font-semibold">Important:</span>{' '}
+//                             paste the label visibly on the package for easy
+//                             scanning by the delivery partner.
+//                           </span>
+//                         </div>
+//                       </div>
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6 space-y-4">
+//                   {/* <h2 className="text-lg font-semibold text-black">
+//                     Inventory Updated
+//                   </h2> */}
+//                   <div className="flex items-center gap-2">
+//                     <img
+//                       src={InventoryUpdated.src}
+//                       alt="inventory-updated"
+//                       className="w-4 h-4"
+//                     />
+//                     <h2 className="text-md font-semibold text-black">
+//                       Inventory Updated
+//                     </h2>
+//                   </div>
+//                   <ul className="space-y-3">
+//                     {myLines.map((line, idx) => {
+//                       const p = line.product;
+//                       const name =
+//                         p && typeof p === 'object' ? p.productName : 'Product';
+//                       const qty = Number(line.quantity || 1);
+//                       const stock =
+//                         p && typeof p === 'object' ? Number(p.stock ?? 0) : 0;
+//                       return (
+//                         <li
+//                           key={`${line.product?._id || idx}`}
+//                           className="rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3"
+//                         >
+//                           <p className="font-semibold text-gray-900 text-sm">
+//                             {name}
+//                           </p>
+//                           <p className="text-xs text-gray-500">
+//                             SKU: {formatSku(p)}
+//                           </p>
+//                           <div className="flex flex-wrap items-center gap-2 mt-2">
+//                             <span className="text-xs font-semibold text-[#C10007] bg-[#FFE2E2] border border-[#FFA2A2] px-2 py-0.5 rounded">
+//                               -{qty} unit{qty === 1 ? '' : 's'} reserved
+//                             </span>
+//                             {/* <span className="text-xs font-medium text-emerald-700">
+//                               <span className="w-4 h-4 rounded-full bg-gray-600"></span>
+//                               {stock} unit{stock === 1 ? '' : 's'} remaining
+//                               (current stock)
+//                             </span> */}
+//                             <span className="text-xs font-medium text-emerald-700 flex items-center gap-1">
+//                               <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
+//                               {stock} unit{stock === 1 ? '' : 's'} remaining
+//                               (current stock)
+//                             </span>
+//                           </div>
+//                         </li>
+//                       );
+//                     })}
+//                   </ul>
+//                   <div className="flex items-start gap-2 rounded-lg bg-[#EFF6FF] border border-[#BEDBFF] px-3 py-2.5 text-xs text-[#193CB8]">
+//                     <Info className="w-3 h-3 shrink-0 mt-0.5" />
+//                     Stock was adjusted when the customer placed the order.
+//                     Counts above reflect your current catalog stock.
+//                   </div>
+//                 </div>
+
+//                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+//                   <button
+//                     type="button"
+//                     disabled={!allChecked || kycBlocked}
+//                     onClick={() => setAssignOpen(true)}
+//                     className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl   bg-gradient-to-r from-[#16A34A] to-[#15803D]
+//   hover:from-[#15803D] hover:to-[#166534]
+//  text-white text-sm font-bold disabled:opacity-40 disabled:pointer-events-none"
+//                   >
+//                     <Package className="w-5 h-5" />
+//                     Mark as packed &amp; ready
+//                     <CheckCircle2 className="w-5 h-5" />
+//                   </button>
+//                   {kycBlocked ? (
+//                     <div className="flex items-start justify-start gap-2 mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+//                       <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+//                       <span>
+//                         <span className="font-semibold">Blocked:</span> Customer
+//                         KYC is not complete. Packing cannot proceed until it is
+//                         approved.
+//                       </span>
+//                     </div>
+//                   ) : (
+//                     <div className="flex items-start justify-start gap-2 mt-3 text-xs text-[#016630] bg-[#F0FDF4] border border-[#B9F8CF] rounded-lg px-3 py-2">
+//                       <Truck className="w-3 h-3 shrink-0 mt-0.5" />
+//                       <span>
+//                         <span className="font-semibold">Ready to ship!</span>{' '}
+//                         This will notify the delivery partner and customer via
+//                         SMS
+//                       </span>
+//                     </div>
+//                   )}
+//                 </div>
+//               </>
+//             ) : null}
+//           </div>
+//         </main>
+//       </div>
+
+//       <VendorAssignDeliveryModal
+//         open={assignOpen}
+//         onClose={() => setAssignOpen(false)}
+//         orderRef={orderRef}
+//         customerShort={shortCustomerName(customerName)}
+//         deliveryLine={deliveryLine}
+//         packingChecklist={checklist}
+//         submitting={submitting}
+//         onMarkShipped={handleMarkShipped}
+//       />
+//     </div>
+//   );
+// }
+
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useSelector } from 'react-redux';
+import {
+  Package,
+  CheckCircle2,
+  Circle,
+  FileText,
+  Tag,
+  Printer,
+  AlertTriangle,
+  Info,
+  Truck,
+  AlertCircle,
+} from 'lucide-react';
+import { toast } from 'react-toastify';
+import {
+  apiGetVendorOrderPack,
+  apiVendorMarkOrderShipped,
+  apiGetCategories,
+} from '@/service/api';
+import {
+  buildCategoryRateMap,
+  computeVendorLineMoney,
+  computeVendorLinesPayout,
+  resolveLineRefundableDeposit,
+} from '../../utils/vendorPayout';
+import VendorSidebar from '../../Components/Common/VendorSidebar';
+import VendorTopBar from '../../Components/Common/VendorTopBar';
+import VendorAssignDeliveryModal from '../../Components/Modals/VendorAssignDeliveryModal';
+import Alert from '@/assets/icons/alret.png';
+import InventoryUpdated from '@/assets/icons/inventory-updtd.png';
+import jsPDF from 'jspdf';
+import RentnpayLogo from '@/assets/icons/rentnpay-logo.png';
+
+function productImageUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = (
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+  ).replace(/\/api\/?$/, '');
+  return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
+// function orderDisplayRef(order) {
+//   const y = order?.createdAt
+//     ? new Date(order.createdAt).getFullYear()
+//     : new Date().getFullYear();
+//   const tail = String(order?._id || '')
+//     .replace(/[^a-fA-F0-9]/g, '')
+//     .slice(-2)
+//     .toUpperCase();
+//   return `${y}-${tail || '00'}`;
+// }
+
+function orderDisplayRef(order) {
+  return String(order?.orderNumber || 0).padStart(4, '0');
+}
+
+function formatSku(product) {
+  if (!product || typeof product === 'string') return '—';
+  const id = String(product._id || '').replace(/[^a-fA-F0-9]/g, '');
+  const tail = id.slice(-6).toUpperCase();
+  return tail ? `PRD-${tail}` : '—';
+}
+
+function lineMatchesVendor(line, vendorIdStr) {
+  const p = line?.product;
+  if (!p || typeof p === 'string') return false;
+  const vid = p.vendorId?._id ?? p.vendorId;
+  return String(vid) === vendorIdStr;
+}
+
+function shortCustomerName(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/);
+  if (!parts[0]) return 'Customer';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+const TASKS = [
+  {
+    key: 'verifyQuality',
+    title: 'Verify item quality',
+    detail: 'Check for scratches, damage, or defects before packing.',
+  },
+  {
+    key: 'packSecurely',
+    title: 'Pack item securely',
+    detail: 'Use bubble wrap, foam, or appropriate packaging material.',
+  },
+  {
+    key: 'labelPasted',
+    title: 'Paste shipping label',
+    detail: 'Affix the printed label clearly on the package.',
+  },
+];
+
+function numberToWordsInvoice(num) {
+  const ones = [
+    '',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+    'Fifteen',
+    'Sixteen',
+    'Seventeen',
+    'Eighteen',
+    'Nineteen',
+  ];
+  const tens = [
+    '',
+    '',
+    'Twenty',
+    'Thirty',
+    'Forty',
+    'Fifty',
+    'Sixty',
+    'Seventy',
+    'Eighty',
+    'Ninety',
+  ];
+  function twoDigits(n) {
+    if (n < 20) return ones[n];
+    return tens[Math.floor(n / 10)] + (n % 10 ? ` ${ones[n % 10]}` : '');
+  }
+  function threeDigits(n) {
+    if (n >= 100) {
+      return `${ones[Math.floor(n / 100)]} Hundred${
+        n % 100 ? ` And ${twoDigits(n % 100)}` : ''
+      }`;
+    }
+    return twoDigits(n);
+  }
+  function integerToWords(n) {
+    if (n === 0) return 'Zero';
+    let result = '';
+    const crore = Math.floor(n / 10000000);
+    n %= 10000000;
+    const lakh = Math.floor(n / 100000);
+    n %= 100000;
+    const thousand = Math.floor(n / 1000);
+    n %= 1000;
+    const rest = n;
+    if (crore) result += `${threeDigits(crore)} Crore `;
+    if (lakh) result += `${threeDigits(lakh)} Lakh `;
+    if (thousand) result += `${threeDigits(thousand)} Thousand `;
+    if (rest) result += threeDigits(rest);
+    return result.trim();
+  }
+  const rupees = Math.floor(num);
+  return `${integerToWords(rupees)} Rupees`;
+}
+
+function openPrintWindow(title, innerHtml) {
+  const w = window.open('', '_blank');
+  if (!w) {
+    toast.error('Allow pop-ups to print.');
+    return;
+  }
+  w.document
+    .write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 24px; color: #111; }
+      h1 { font-size: 18px; margin-bottom: 8px; }
+      .muted { color: #666; font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    </style></head><body>${innerHtml}</body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+function loadImageAsDataUrlPack(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// function drawOrderDocHeader(pdf, { title, orderRef, dateStr, logoDataUrl }) {
+//   const pageW = 210;
+//   const marginX = 14;
+//   const rightX = pageW - marginX;
+//   let y = 20;
+
+//   pdf.setFontSize(18);
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text(title, marginX, y);
+//   pdf.setFont(undefined, 'normal');
+
+//   y += 5;
+//   pdf.setDrawColor(230);
+//   pdf.line(marginX, y, rightX, y);
+
+//   const logoY = y + 14;
+//   if (logoDataUrl) {
+//     try {
+//       pdf.addImage(logoDataUrl, 'PNG', marginX, logoY - 8, 16, 16);
+//     } catch (e) {
+//       // fall back silently if the image fails to embed
+//     }
+//   }
+//   pdf.setFontSize(14);
+//   pdf.text('Rentnpay Commerce LLP', marginX + 20, logoY - 2);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.setFontSize(9);
+//   pdf.text('LLPIN: ACX-5815', marginX + 20, logoY + 4);
+//   pdf.text('GSTIN: 27ABNFR6490F1ZO', marginX + 20, logoY + 9);
+
+//   pdf.setFontSize(9);
+//   pdf.text(`Order #ORD-${orderRef}`, rightX, y + 8, { align: 'right' });
+//   pdf.text(dateStr, rightX, y + 13, { align: 'right' });
+
+//   return Math.max(logoY + 16, y + 20);
+// }
+
+// function buildOrderInvoicePdf(
+//   { order, orderRef, vendorGstin, customerName, myLines },
+//   logoDataUrl,
+// ) {
+//   const pdf = new jsPDF();
+//   const marginX = 14;
+//   const rightX = 210 - marginX;
+//   let y = drawOrderDocHeader(pdf, {
+//     title: 'Tax Invoice',
+//     orderRef,
+//     dateStr: new Date(order.createdAt).toLocaleDateString('en-IN'),
+//     logoDataUrl,
+//   });
+
+//   y += 10;
+//   pdf.setFillColor(245, 247, 250);
+//   pdf.roundedRect(marginX, y, rightX - marginX, 38, 3, 3, 'F');
+//   pdf.setFontSize(9);
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Vendor GSTIN', marginX + 6, y + 9);
+//   pdf.text('Customer', marginX + 6, y + 18);
+//   pdf.text('Delivery Address', marginX + 6, y + 27);
+//   pdf.text('Phone', marginX + 6, y + 36);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.text(vendorGstin || '—', marginX + 45, y + 9);
+//   pdf.text(customerName, marginX + 45, y + 18);
+//   const invoiceAddrWrapped = pdf.splitTextToSize(
+//     String(order.address || '—'),
+//     120,
+//   );
+//   pdf.text(invoiceAddrWrapped, marginX + 45, y + 27);
+//   pdf.text(String(order.phone || '—'), marginX + 45, y + 36);
+//   y += 48;
+
+//   pdf.setFontSize(8);
+//   pdf.setFont(undefined, 'bold');
+//   pdf.setTextColor(110);
+//   pdf.text('Item', marginX + 2, y);
+//   pdf.text('SKU', marginX + 110, y);
+//   pdf.text('Qty', rightX - 2, y, { align: 'right' });
+//   pdf.setTextColor(0, 0, 0);
+//   pdf.setFont(undefined, 'normal');
+//   y += 4;
+//   pdf.setDrawColor(230);
+//   pdf.line(marginX, y, rightX, y);
+//   y += 6;
+
+//   myLines.forEach((line) => {
+//     const p = line.product;
+//     const name = p && typeof p === 'object' ? p.productName : 'Item';
+//     pdf.setFontSize(9);
+//     pdf.text(String(name), marginX + 2, y);
+//     pdf.text(formatSku(p), marginX + 110, y);
+//     pdf.text(String(line.quantity ?? 1), rightX - 2, y, { align: 'right' });
+//     y += 8;
+//   });
+
+//   const totalQty = myLines.reduce((sum, l) => sum + Number(l.quantity || 1), 0);
+//   pdf.setFontSize(9);
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text(`Total items: ${totalQty}`, marginX + 2, y);
+//   pdf.setFont(undefined, 'normal');
+//   return pdf;
+// }
+
+function drawOrderDocHeader(pdf, { title, orderRef, dateStr, logoDataUrl }) {
+  const pageW = 210;
+  const marginX = 14;
+  const rightX = pageW - marginX;
+  let y = 20;
+
+  pdf.setFontSize(18);
+  pdf.setFont(undefined, 'bold');
+  pdf.text(title, marginX, y);
+  pdf.setFont(undefined, 'normal');
+
+  y += 5;
+  pdf.setDrawColor(230);
+  pdf.line(marginX, y, rightX, y);
+
+  const logoY = y + 14;
+  if (logoDataUrl) {
+    try {
+      pdf.addImage(logoDataUrl, 'PNG', marginX, logoY - 8, 16, 16);
+    } catch (e) {
+      // fall back silently if the image fails to embed
+    }
+  }
+  pdf.setFontSize(14);
+  pdf.text('Rentnpay Commerce LLP', marginX + 20, logoY - 2);
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(9);
+  pdf.text('LLPIN: ACX-5815', marginX + 20, logoY + 4);
+  pdf.text('GSTIN: 27ABNFR6490F1ZO', marginX + 20, logoY + 9);
+
+  pdf.setFontSize(9);
+  const headerAddrLines = [
+    'State: Maharashtra || State Code: 27',
+    'City: Pune',
+    'Address: B1-1002, Sr. No. 41/1/1,',
+    'Near Kakde Terrace, Warje,',
+    'Pune \u2013 411058, Maharashtra, India.',
+  ];
+  let addrY = y + 8;
+  headerAddrLines.forEach((line) => {
+    pdf.text(line, rightX, addrY, { align: 'right' });
+    addrY += 5;
+  });
+
+  return Math.max(logoY + 16, addrY + 4);
+}
+// function buildOrderInvoicePdf(
+//   { order, orderRef, vendorGstin, customerName, myLines },
+//   logoDataUrl,
+// ) {
+function buildOrderInvoicePdf(
+  {
+    order,
+    orderRef,
+    vendorGstin,
+    vendorName,
+    vendorAddress,
+    customerName,
+    myLines,
+    categoryRateMap = {},
+  },
+  logoDataUrl,
+) {
+  const pdf = new jsPDF();
+  const marginX = 14;
+  const rightX = 210 - marginX;
+
+  // Custom header (invoice-only): logo + company on the left, and the
+  // company's own address on the right — not the order number/date,
+  // which now lives inside the gray "Invoice Details" box below.
+  let y = 20;
+  pdf.setFontSize(18);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Tax Invoice', marginX, y);
+  pdf.setFont(undefined, 'normal');
+
+  y += 5;
+  pdf.setDrawColor(230);
+  pdf.line(marginX, y, rightX, y);
+
+  const logoY = y + 14;
+  if (logoDataUrl) {
+    try {
+      pdf.addImage(logoDataUrl, 'PNG', marginX, logoY - 8, 16, 16);
+    } catch (e) {
+      // fall back silently if the image fails to embed
+    }
+  }
+  pdf.setFontSize(14);
+  pdf.text('Rentnpay Commerce LLP', marginX + 20, logoY - 2);
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(9);
+  pdf.text('LLPIN: ACX-5815', marginX + 20, logoY + 4);
+  pdf.text('GSTIN: 27ABNFR6490F1ZO', marginX + 20, logoY + 9);
+
+  pdf.setFontSize(9);
+  const headerAddrLines = [
+    'State: Maharashtra || State Code: 27',
+    'City: Pune',
+    'Address: B1-1002, Sr. No. 41/1/1,',
+    'Near Kakde Terrace, Warje,',
+    'Pune \u2013 411058, Maharashtra, India.',
+  ];
+  let addrY = y + 8;
+  headerAddrLines.forEach((line) => {
+    pdf.text(line, rightX, addrY, { align: 'right' });
+    addrY += 5;
+  });
+
+  y = Math.max(logoY + 16, addrY + 4);
+
+  // Deposit / taxes are order-level fields (same as elsewhere in the app);
+  // they simply won't render if the order object doesn't carry them.
+  const depositTotal = myLines.reduce(
+    (sum, l) => sum + resolveLineRefundableDeposit(l, order),
+    0,
+  );
+  const grandTotal = computeVendorLinesPayout(myLines, categoryRateMap, order);
+
+  y += 10;
+  const boxTop = y;
+  const details = [
+    ['Order Number', `ORD-${orderRef}`],
+    ['Order Date', new Date(order.createdAt).toLocaleDateString('en-IN')],
+    ['Vendor GSTIN', vendorGstin || '—'],
+    ...(depositTotal > 0
+      ? [['Refundable Deposit', `Rs. ${depositTotal.toLocaleString('en-IN')}`]]
+      : []),
+  ];
+  const boxHeight = 40 + details.length * 6;
+  pdf.setFillColor(245, 247, 250);
+  pdf.roundedRect(marginX, boxTop, rightX - marginX, boxHeight, 3, 3, 'F');
+
+  let leftY = boxTop + 10;
+  pdf.setFontSize(12);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Invoice Details', marginX + 6, leftY);
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(9);
+  leftY += 7;
+  details.forEach(([label, val]) => {
+    pdf.setFont(undefined, 'bold');
+    pdf.text(label, marginX + 6, leftY);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(String(val), marginX + 45, leftY);
+    leftY += 6;
+  });
+  leftY += 2;
+  pdf.setFontSize(13);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Total', marginX + 6, leftY);
+  pdf.text(`Rs. ${grandTotal.toLocaleString('en-IN')}`, marginX + 45, leftY);
+  pdf.setFont(undefined, 'normal');
+
+  let rightY = boxTop + 10;
+  pdf.setFontSize(12);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Billed to', rightX - 6, rightY, { align: 'right' });
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(9);
+  rightY += 7;
+  pdf.text(customerName, rightX - 6, rightY, { align: 'right' });
+  rightY += 5;
+  pdf.text(String(order.phone || '—'), rightX - 6, rightY, { align: 'right' });
+  rightY += 5;
+  const invoiceAddrWrapped = pdf.splitTextToSize(
+    String(order.address || '—'),
+    70,
+  );
+  invoiceAddrWrapped.forEach((line) => {
+    pdf.text(line, rightX - 6, rightY, { align: 'right' });
+    rightY += 5;
+  });
+
+  y = boxTop + boxHeight + 12;
+
+  pdf.setFontSize(14);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Invoice Item(s) Details', marginX, y);
+  pdf.setFont(undefined, 'normal');
+  y += 8;
+
+  const cols = [
+    { label: 'S.No', x: marginX + 2, w: 8 },
+    { label: 'Particulars', x: marginX + 12, w: 90 },
+    { label: 'Qty', x: marginX + 128, w: 14 },
+    { label: 'Deposit', x: marginX + 150, w: 26 },
+    { label: 'Amount', x: rightX - 2, w: 24, align: 'right' },
+  ];
+  pdf.setFontSize(8);
+  pdf.setFont(undefined, 'bold');
+  pdf.setTextColor(110);
+  cols.forEach((c) => {
+    pdf.text(c.label, c.x, y, c.align ? { align: c.align } : undefined);
+  });
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont(undefined, 'normal');
+  y += 6;
+
+  myLines.forEach((line, idx) => {
+    const p = line.product;
+    const name = p && typeof p === 'object' ? p.productName : 'Item';
+    const qty = Number(line.quantity ?? 1);
+    const money = computeVendorLineMoney(line, categoryRateMap, order);
+    const rowTop = y;
+    const nameWrapped = pdf.splitTextToSize(`Item: ${name}`, cols[1].w);
+
+    pdf.setFontSize(8);
+    pdf.text(String(idx + 1), cols[0].x, rowTop + 4);
+    pdf.text(nameWrapped, cols[1].x, rowTop + 4);
+    pdf.text(String(qty), cols[2].x, rowTop + 4);
+    pdf.text(
+      `Rs.${money.deposit.toLocaleString('en-IN')}`,
+      cols[3].x,
+      rowTop + 4,
+    );
+    pdf.text(
+      `Rs.${money.netProduct.toLocaleString('en-IN')}`,
+      cols[4].x,
+      rowTop + 4,
+      { align: 'right' },
+    );
+
+    const rowHeight = Math.max(nameWrapped.length * 4.2 + 4, 14);
+    pdf.setDrawColor(225);
+    pdf.roundedRect(
+      marginX,
+      rowTop - 4,
+      rightX - marginX,
+      rowHeight,
+      2,
+      2,
+      'S',
+    );
+    y = rowTop + rowHeight + 4;
+  });
+
+  y += 6;
+  const amountInWords = numberToWordsInvoice(grandTotal);
+  const wordsWrapped = pdf.splitTextToSize(
+    `Total (In Words): ${amountInWords}`,
+    rightX - marginX - 12,
+  );
+  const wordsStartY = 30;
+  const totalBarHeight = wordsStartY + wordsWrapped.length * 6 + 2;
+  pdf.setFillColor(249, 115, 22);
+  pdf.roundedRect(marginX, y, rightX - marginX, totalBarHeight, 3, 3, 'F');
+
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(18);
+  pdf.setFont(undefined, 'bold');
+  pdf.text(`Rs. ${grandTotal.toLocaleString('en-IN')}`, rightX - 6, y + 14, {
+    align: 'right',
+  });
+  pdf.text('Total', rightX - 6, y + 22, { align: 'right' });
+
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(11);
+  pdf.text(wordsWrapped, rightX - 6, y + wordsStartY, { align: 'right' });
+
+  pdf.setTextColor(0, 0, 0);
+
+  y += totalBarHeight + 8;
+  pdf.setFontSize(9);
+  pdf.setTextColor(120);
+  pdf.text(
+    'This is a system-generated document. No signature required.',
+    marginX,
+    y,
+  );
+  pdf.setTextColor(0, 0, 0);
+
+  return pdf;
+}
+
+// function buildOrderLabelPdf(
+//   { order, orderRef, customerName, myLines },
+//   logoDataUrl,
+// ) {
+// function buildOrderLabelPdf(
+//   { order, orderRef, vendorName, vendorAddress, customerName, myLines },
+//   logoDataUrl,
+// ) {
+//   const pdf = new jsPDF();
+//   const marginX = 14;
+//   const labelDateStr = new Date().toLocaleDateString('en-IN');
+//   let y = drawOrderDocHeader(pdf, {
+//     title: 'Shipping Label',
+//     orderRef,
+//     dateStr: labelDateStr,
+//     logoDataUrl,
+//   });
+
+//   y += 10;
+//   pdf.setFontSize(11);
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Ship to', marginX, y);
+//   pdf.setFont(undefined, 'normal');
+//   y += 6;
+//   pdf.setFontSize(10);
+//   pdf.text(String(customerName), marginX, y);
+//   y += 5;
+//   const addrWrapped = pdf.splitTextToSize(String(order.address || ''), 180);
+//   addrWrapped.forEach((line) => {
+//     pdf.text(line, marginX, y);
+//     y += 5;
+//   });
+//   y += 2;
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Phone', marginX, y);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.text(String(order.phone || '—'), marginX + 14, y);
+
+//   y += 8;
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Order Number', marginX, y);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.text(`ORD-${orderRef}`, marginX + 30, y);
+
+//   // y += 6;
+//   // pdf.setFont(undefined, 'bold');
+//   // pdf.text('Order Date', marginX, y);
+//   // pdf.setFont(undefined, 'normal');
+//   // pdf.text(labelDateStr, marginX + 30, y);
+
+//   // y += 8;
+//   // const labelTotalQty = (myLines || []).reduce(
+//   y += 6;
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Order Date', marginX, y);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.text(labelDateStr, marginX + 30, y);
+
+//   y += 6;
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Sold by', marginX, y);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.text(String(vendorName || '—'), marginX + 30, y);
+//   y += 5;
+//   const soldByAddrWrapped = pdf.splitTextToSize(
+//     String(vendorAddress || '—'),
+//     180,
+//   );
+//   soldByAddrWrapped.forEach((line) => {
+//     pdf.text(line, marginX + 30, y);
+//     y += 5;
+//   });
+
+//   y += 3;
+//   const labelTotalQty = (myLines || []).reduce(
+//     (sum, l) => sum + Number(l.quantity || 1),
+//     0,
+//   );
+//   pdf.setFont(undefined, 'bold');
+//   pdf.text('Total items', marginX, y);
+//   pdf.setFont(undefined, 'normal');
+//   pdf.text(String(labelTotalQty), marginX + 20, y);
+
+//   y += 12;
+//   pdf.setFontSize(9);
+//   pdf.setTextColor(120);
+//   pdf.text(
+//     'Barcode / tracking: attach partner label when available.',
+//     marginX,
+//     y,
+//   );
+//   pdf.setTextColor(0, 0, 0);
+
+//   return pdf;
+// }
+
+function buildOrderLabelPdf(
+  { order, orderRef, vendorName, vendorAddress, customerName, myLines },
+  logoDataUrl,
+) {
+  const pdf = new jsPDF();
+  const marginX = 14;
+  const rightX = 210 - marginX;
+  const labelDateStr = new Date().toLocaleDateString('en-IN');
+  let y = drawOrderDocHeader(pdf, {
+    title: 'Shipping Label',
+    orderRef,
+    dateStr: labelDateStr,
+    logoDataUrl,
+  });
+
+  y += 10;
+  const boxTop = y;
+  const details = [
+    ['Order Number', `ORD-${orderRef}`],
+    ['Label Date', labelDateStr],
+    ['Sold by', vendorName || '—'],
+  ];
+  const soldByAddrWrapped = pdf.splitTextToSize(
+    String(vendorAddress || '—'),
+    70,
+  );
+  const boxHeight = 40 + details.length * 6 + soldByAddrWrapped.length * 5;
+  pdf.setFillColor(245, 247, 250);
+  pdf.roundedRect(marginX, boxTop, rightX - marginX, boxHeight, 3, 3, 'F');
+
+  let leftY = boxTop + 10;
+  pdf.setFontSize(12);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Label Details', marginX + 6, leftY);
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(9);
+  leftY += 7;
+  details.forEach(([label, val]) => {
+    pdf.setFont(undefined, 'bold');
+    pdf.text(label, marginX + 6, leftY);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(String(val), marginX + 32, leftY);
+    leftY += 6;
+  });
+  // soldByAddrWrapped.forEach((line) => {
+  //   pdf.text(line, marginX + 32, leftY);
+  //   leftY += 5;
+  // });
+  // leftY += 2;
+  // const labelTotalQty = (myLines || []).reduce(
+  //   (sum, l) => sum + Number(l.quantity || 1),
+  //   0,
+  // );
+  // pdf.setFont(undefined, 'bold');
+  // pdf.text('Total items', marginX + 6, leftY);
+  // pdf.setFont(undefined, 'normal');
+  // pdf.text(String(labelTotalQty), marginX + 32, leftY);
+
+  // let rightY = boxTop + 10;
+  soldByAddrWrapped.forEach((line) => {
+    pdf.text(line, marginX + 32, leftY);
+    leftY += 5;
+  });
+
+  let rightY = boxTop + 10;
+  pdf.setFontSize(12);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Shipping to', rightX - 6, rightY, { align: 'right' });
+  pdf.setFont(undefined, 'normal');
+  pdf.setFontSize(9);
+  rightY += 7;
+  pdf.text(String(customerName), rightX - 6, rightY, { align: 'right' });
+  rightY += 5;
+  pdf.text(String(order.phone || '—'), rightX - 6, rightY, { align: 'right' });
+  rightY += 5;
+  const addrWrapped = pdf.splitTextToSize(String(order.address || '—'), 70);
+  addrWrapped.forEach((line) => {
+    pdf.text(line, rightX - 6, rightY, { align: 'right' });
+    rightY += 5;
+  });
+
+  y = boxTop + boxHeight + 12;
+
+  pdf.setFontSize(14);
+  pdf.setFont(undefined, 'bold');
+  pdf.text('Item(s) Details', marginX, y);
+  pdf.setFont(undefined, 'normal');
+  y += 8;
+
+  const cols = [
+    { label: 'S.No', x: marginX + 2, w: 8 },
+    { label: 'Particulars', x: marginX + 12, w: 150 },
+    { label: 'Qty', x: rightX - 2, w: 14, align: 'right' },
+  ];
+  pdf.setFontSize(8);
+  pdf.setFont(undefined, 'bold');
+  pdf.setTextColor(110);
+  cols.forEach((c) => {
+    pdf.text(c.label, c.x, y, c.align ? { align: c.align } : undefined);
+  });
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont(undefined, 'normal');
+  y += 6;
+
+  (myLines || []).forEach((line, idx) => {
+    const p = line.product;
+    const name = p && typeof p === 'object' ? p.productName : 'Item';
+    const qty = Number(line.quantity ?? 1);
+    const rowTop = y;
+    const nameWrapped = pdf.splitTextToSize(`Item: ${name}`, cols[1].w);
+
+    pdf.setFontSize(8);
+    pdf.text(String(idx + 1), cols[0].x, rowTop + 4);
+    pdf.text(nameWrapped, cols[1].x, rowTop + 4);
+    pdf.text(String(qty), cols[2].x, rowTop + 4, { align: 'right' });
+
+    const rowHeight = Math.max(nameWrapped.length * 4.2 + 4, 14);
+    pdf.setDrawColor(225);
+    pdf.roundedRect(
+      marginX,
+      rowTop - 4,
+      rightX - marginX,
+      rowHeight,
+      2,
+      2,
+      'S',
+    );
+    y = rowTop + rowHeight + 4;
+  });
+
+  y += 8;
+  pdf.setFontSize(9);
+  pdf.setTextColor(120);
+  pdf.text(
+    'Barcode / tracking: attach partner label when available.',
+    marginX,
+    y,
+  );
+  pdf.setTextColor(0, 0, 0);
+
+  return pdf;
+}
+
+export default function VendorOrderPackPage({ orderId }) {
+  const router = useRouter();
+  const { user, token } = useSelector((s) => s.vendor);
+  const vendorIdStr = String(user?.id || user?._id || '');
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [order, setOrder] = useState(null);
+  // const [vendorGstin, setVendorGstin] = useState('');
+  const [vendorGstin, setVendorGstin] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [vendorStoreName, setVendorStoreName] = useState('');
+  const [vendorAddress, setVendorAddress] = useState('');
+  const [kycBlocked, setKycBlocked] = useState(false);
+  const [kycBlockedMessage, setKycBlockedMessage] = useState('');
+  const [categoryRateMap, setCategoryRateMap] = useState({});
+  const [checklist, setChecklist] = useState({
+    verifyQuality: false,
+    packSecurely: false,
+    labelPasted: false,
+  });
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const searchParams = useSearchParams();
+  const productId = searchParams.get('productId') || '';
+
+  const getToken = useCallback(() => {
+    return (
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('vendorToken')
+        : null)
+    );
+  }, [token]);
+
+  const load = useCallback(async () => {
+    const auth = getToken();
+    if (!auth || !orderId) {
+      setError('Please log in again.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const [res, catRes] = await Promise.all([
+        apiGetVendorOrderPack(orderId, auth, productId),
+        apiGetCategories().catch(() => ({ data: [] })),
+      ]);
+      // const o = res.data?.order;
+      // console.log('vendor info:', o?.products?.[0]?.product?.vendorId);
+      // setOrder(o);
+      // setVendorGstin(res.data?.vendorGstin || '');
+      const o = res.data?.order;
+      setOrder(o);
+      setVendorGstin(res.data?.vendorGstin || '');
+      setVendorName(res.data?.vendorName || '');
+      setVendorStoreName(res.data?.vendorStoreName || '');
+      setVendorAddress(res.data?.vendorAddress || '');
+      setCategoryRateMap(
+        buildCategoryRateMap(Array.isArray(catRes?.data) ? catRes.data : []),
+      );
+      // console.log('vendorName:', res.data?.vendorName);
+      // console.log('vendorAddress:', res.data?.vendorAddress);
+      setKycBlocked(Boolean(res.data?.kycBlocked));
+      setKycBlockedMessage(res.data?.kycBlockedMessage || '');
+      const fc = o?.vendorFulfillment?.packingChecklist;
+      if (fc) {
+        setChecklist({
+          verifyQuality: !!fc.verifyQuality,
+          packSecurely: !!fc.packSecurely,
+          labelPasted: !!fc.labelPasted,
+        });
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.message || e?.message || 'Failed to load';
+      const code = e?.response?.data?.code;
+      setOrder(null);
+      setError(msg);
+      if (code === 'INVALID_STATUS' || e?.response?.status === 400) {
+        toast.error(msg);
+        router.replace('/vendor/orders');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId, getToken, router, productId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const myLines = useMemo(() => {
+    if (!order || !vendorIdStr) return [];
+    return (order.products || []).filter((l) =>
+      lineMatchesVendor(l, vendorIdStr),
+    );
+  }, [order, vendorIdStr]);
+
+  const completedCount = useMemo(
+    () => TASKS.filter((t) => checklist[t.key]).length,
+    [checklist],
+  );
+
+  const allChecked = completedCount === TASKS.length;
+
+  const customerName = order?.user?.fullName || order?.name || 'Customer';
+  const orderRef = order ? orderDisplayRef(order) : '';
+  const cityHint =
+    myLines[0]?.product?.logisticsVerification?.city?.trim() || '';
+  const deliveryLine = cityHint
+    ? `Delivery to: ${cityHint} · ${String(order?.address || '').slice(0, 64)}`
+    : `Delivery to: ${String(order?.address || '—').slice(0, 80)}`;
+
+  const printInvoice = async () => {
+    if (!order) return;
+    let logoDataUrl = null;
+    try {
+      logoDataUrl = await loadImageAsDataUrlPack(RentnpayLogo.src);
+    } catch (e) {
+      // proceed without the logo if it fails to load
+    }
+    // const pdf = buildOrderInvoicePdf(
+    //   { order, orderRef, vendorGstin, customerName, myLines },
+    //   logoDataUrl,
+    // );
+    // pdf.save(`invoice-ORD-${orderRef}.pdf`);
+    // const pdf = buildOrderInvoicePdf(
+    //   { order, orderRef, vendorGstin, customerName, myLines },
+    //   logoDataUrl,
+    // );
+    // pdf.autoPrint();
+    // const invoiceBlobUrl = pdf.output('bloburl');
+    const pdf = buildOrderInvoicePdf(
+      {
+        order,
+        orderRef,
+        vendorGstin,
+        vendorName,
+        vendorAddress,
+        customerName,
+        myLines,
+        categoryRateMap,
+      },
+      logoDataUrl,
+    );
+    pdf.autoPrint();
+    const invoiceBlobUrl = pdf.output('bloburl');
+    const invoiceWin = window.open(invoiceBlobUrl, '_blank');
+    if (!invoiceWin) {
+      toast.error('Allow pop-ups to print.');
+    }
+  };
+
+  const printLabel = async () => {
+    if (!order) return;
+    let logoDataUrl = null;
+    try {
+      logoDataUrl = await loadImageAsDataUrlPack(RentnpayLogo.src);
+    } catch (e) {
+      // proceed without the logo if it fails to load
+    }
+    // const pdf = buildOrderLabelPdf(
+    //   { order, orderRef, customerName, myLines },
+    //   logoDataUrl,
+    // );
+    // pdf.save(`label-ORD-${orderRef}.pdf`);
+
+    // const pdf = buildOrderLabelPdf(
+    //   { order, orderRef, customerName, myLines },
+    //   logoDataUrl,
+    // );
+    // pdf.autoPrint();
+    // const labelBlobUrl = pdf.output('bloburl');
+    const pdf = buildOrderLabelPdf(
+      {
+        order,
+        orderRef,
+        vendorName: vendorStoreName,
+        vendorAddress,
+        customerName,
+        myLines,
+      },
+      logoDataUrl,
+    );
+    pdf.autoPrint();
+    const labelBlobUrl = pdf.output('bloburl');
+    const labelWin = window.open(labelBlobUrl, '_blank');
+    if (!labelWin) {
+      toast.error('Allow pop-ups to print.');
+    }
+  };
+
+  const toggleTask = (key) => {
+    setChecklist((c) => ({ ...c, [key]: !c[key] }));
+  };
+
+  // const handleMarkShipped = async ({
+  //   method,
+  //   driverName,
+  //   driverPhone,
+  //   vehicleNumber,
+  //   packingChecklist: pc,
+  // }) => {
+  //   const auth = getToken();
+  //   if (!auth) {
+  //     toast.error('Please log in again.');
+  //     return;
+  //   }
+  //   setSubmitting(true);
+  //   try {
+  //     await apiVendorMarkOrderShipped(
+  //       orderId,
+  //       {
+  //         packingChecklist: pc,
+  //         delivery: {
+  //           method,
+  //           driverName,
+  //           driverPhone,
+  //           vehicleNumber,
+  //         },
+  //       },
+  //       auth,
+  //     );
+  //     toast.success('Order marked as shipped.');
+  //     if (typeof window !== 'undefined') {
+  //       window.dispatchEvent(new CustomEvent('vendor-orders-changed'));
+  //     }
+  //     setAssignOpen(false);
+  //     router.push('/vendor/orders');
+  //   } catch (e) {
+  //     toast.error(e?.response?.data?.message || 'Could not mark shipped');
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
+
+  const handleMarkShipped = async ({
+    method,
+    driverName,
+    driverPhone,
+    vehicleNumber,
+    packingChecklist: pc,
+  }) => {
+    const auth = getToken();
+    if (!auth) {
+      toast.error('Please log in again.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiVendorMarkOrderShipped(
+        orderId,
+        {
+          packingChecklist: pc,
+          delivery: {
+            method,
+            driverName,
+            driverPhone,
+            vehicleNumber,
+          },
+          productId, // ← ADD THIS ONE LINE
+        },
+        auth,
+      );
+      toast.success('Order marked as shipped.');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('vendor-orders-changed'));
+      }
+      setAssignOpen(false);
+      router.push('/vendor/orders');
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Could not mark shipped');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className="flex h-screen bg-[#f3f5f9] overflow-hidden">
+      <VendorSidebar />
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <VendorTopBar />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-3xl mx-auto space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/vendor/orders"
+                className="text-sm font-medium text-[#F97316] hover:underline"
+              >
+                ← Back to orders
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-20">
+                <div className="w-10 h-10 border-4 border-[#F97316] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : error && !order ? (
+              <div className="bg-white rounded-2xl border border-red-200 p-6 text-red-600 text-sm">
+                {error}
+              </div>
+            ) : order ? (
+              <>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    {/* <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
+                        <Package className="w-6 h-6" />
+                      </div>
+
+                      <div>
+                        <h1 className="text-xl font-bold text-gray-900">
+                          #ORD-{orderRef}
+                        </h1>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          Processing &amp; packing
+                        </p>
+                      </div>
+                    </div> */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white">
+                        <Package className="w-6 h-6" />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        {/* badge on top */}
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          Processing &amp; packing
+                        </p>
+                        {/* order id */}
+                        <h1 className="text-xl font-bold text-gray-900">
+                          #ORD-{orderRef}
+                        </h1>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      PROCESSING · In progress
+                    </span>
+                  </div>
+                  {kycBlocked ? (
+                    <div className="mt-4 rounded-xl gap-1 flex flex-row bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                        <span>
+                          <span className="font-semibold block">
+                            Delivery Blocked
+                          </span>
+                          <span className="block text-xs text-red-700 mt-1">
+                            {kycBlockedMessage}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-xl gap-1 flex flex-row bg-[#EFF6FF] border border-[#BEDBFF] px-4 py-3 text-sm text-[#193CB8]">
+                      <div className="flex items-center gap-2 mb-1">
+                        <img src={Alert.src} alt="alert" className="w-4 h-4" />
+                        <p className="text-sm font-semibold tracking-wide">
+                          Next step:
+                        </p>
+                      </div>
+
+                      <p className="text-sm">
+                        Pack items and attach documents.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+                  <h2 className="text-lg font-semibold text-black">
+                    Packing checklist
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Complete all tasks before marking as packed.
+                  </p>
+                  <ul className="mt-4 space-y-3">
+                    {TASKS.map((task, idx) => {
+                      const done = checklist[task.key];
+                      return (
+                        <li key={task.key}>
+                          <button
+                            type="button"
+                            onClick={() => toggleTask(task.key)}
+                            className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-colors ${
+                              done
+                                ? 'border-emerald-300 bg-emerald-50/40'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            {/* <div className="flex items-start gap-3">
+                              {done ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                              ) : (
+                                <Circle className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <p className="font-semibold text-gray-900 text-sm">
+                                  Task {idx + 1}/{TASKS.length} — {task.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {task.detail}
+                                </p>
+                              </div>
+                            </div> */}
+
+                            <div className="flex items-start gap-3">
+                              {done ? (
+                                <div className="w-5 h-5 rounded-md bg-[#008236] flex items-center justify-center shrink-0 mt-0.5">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              ) : (
+                                <Circle className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />
+                              )}
+
+                              <div>
+                                <p className="text-xs font-semibold text-gray-500">
+                                  Task {idx + 1}/{TASKS.length}
+                                </p>
+
+                                <p
+                                  className={`font-semibold text-sm ${
+                                    done
+                                      ? 'text-[#008236] line-through decoration-[#008236]'
+                                      : 'text-gray-900'
+                                  }`}
+                                >
+                                  {task.title}
+                                </p>
+
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {task.detail}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {/* <div className="mt-4">
+                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all"
+                        style={{
+                          width: `${(completedCount / TASKS.length) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      {completedCount}/{TASKS.length} completed
+                    </p>
+                  </div> */}
+                  <div className="mt-4">
+                    {/* Label row above the bar */}
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-semibold text-gray-500">
+                        Progress
+                      </p>
+                      <p className="text-xs font-semibold text-black">
+                        {completedCount}/{TASKS.length} completed
+                      </p>
+                    </div>
+
+                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all"
+                        style={{
+                          width: `${(completedCount / TASKS.length) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6 space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-black">
+                      Required documents
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Print and attach these documents to the package.
+                    </p>
+                  </div>
+
+                  {/* <div className="flex items-start gap-3 flex-1">
+                      <FileText className="w-8 h-8 text-[#F97316] bg-[#FFEDD4] rounded-lg p-1.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          Tax invoice
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          GST-compliant summary with line items.
+                        </p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          Vendor GSTIN:{' '}
+                          <span className="font-mono">
+                            {vendorGstin || '—'}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          Customer: {customerName}
+                        </p>
+                      </div>
+                    </div> */}
+                  {/* <div className="rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <FileText className="w-8 h-8 text-[#F97316] bg-[#FFEDD4] rounded-lg p-1.5 shrink-0" />
+
+                      <div className="w-full">
+                        <p className="font-semibold text-gray-900">
+                          Tax invoice
+                        </p>
+
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          GST-compliant summary with line items.
+                        </p>
+
+              
+                        <div className="border-t border-gray-200 my-2"></div>
+
+                        <div className="flex items-start gap-36 text-xs">
+                          <div>
+                            <p className="text-gray-500">Vendor GSTIN</p>
+                            <p className="font-semibold text-gray-900 font-mono">
+                              {vendorGstin || '—'}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-500">Customer</p>
+                            <p className="font-semibold text-gray-900">
+                              {customerName}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={printInvoice}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#F97316] text-white text-sm font-semibold hover:bg-[#e56400] shrink-0"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print PDF
+                    </button>
+                  </div> */}
+                  <div className="rounded-xl border border-gray-200 p-4 flex flex-col gap-4">
+                    <div className="flex items-start gap-3">
+                      <FileText className="w-8 h-8 text-[#F97316] bg-[#FFEDD4] rounded-lg p-1.5 shrink-0" />
+
+                      <div className="w-full">
+                        {/* Top row responsive */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              Tax invoice
+                            </p>
+
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              GST-compliant summary with line items.
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={printInvoice}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#F97316] text-white text-sm font-semibold hover:bg-[#e56400] shrink-0 w-full sm:w-auto"
+                          >
+                            <Printer className="w-4 h-4" />
+                            Print
+                          </button>
+                        </div>
+
+                        {/* divider */}
+                        <div className="border-t border-gray-200 my-3"></div>
+
+                        {/* GSTIN + Customer responsive */}
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:gap-16 gap-3 text-xs">
+                          <div>
+                            <p className="text-gray-500">Vendor GSTIN</p>
+                            <p className="font-semibold text-gray-900 font-mono">
+                              {vendorGstin || '—'}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-500">Customer</p>
+                            <p className="font-semibold text-gray-900">
+                              {customerName}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* <div className="rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <Tag className="w-8 h-8 text-[#3B82F6] bg-[#DBEAFE] rounded-lg p-1.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          Shipping label
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Barcode label with delivery address
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={printLabel}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shrink-0"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print label
+                    </button>
+                  </div> */}
+                  {/* <div className="flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-100 px-3 py-2.5 text-xs text-orange-900">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    Important: paste the label visibly on the package for easy
+                    scanning by the delivery partner.
+                  </div> */}
+                  <div className="rounded-xl border border-gray-200 p-4 flex flex-col gap-4">
+                    <div className="flex items-start gap-3">
+                      <Tag className="w-8 h-8 text-[#3B82F6] bg-[#DBEAFE] rounded-lg p-1.5 shrink-0" />
+
+                      <div className="w-full">
+                        {/* top row */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              Shipping label
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Barcode label with delivery address
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={printLabel}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#3B82F6] text-white text-sm font-semibold hover:bg-blue-700 shrink-0 w-full sm:w-auto"
+                          >
+                            <Printer className="w-4 h-4" />
+                            Print
+                          </button>
+                        </div>
+
+                        {/* divider */}
+                        <div className="border-t border-gray-200 my-3"></div>
+
+                        {/* bottom content (you can add anything here later) */}
+                        <div className="text-xs flex gap-1 text-[#973C00]">
+                          <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                          <span>
+                            <span className="font-semibold">Important:</span>{' '}
+                            paste the label visibly on the package for easy
+                            scanning by the delivery partner.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6 space-y-4">
+                  {/* <h2 className="text-lg font-semibold text-black">
+                    Inventory Updated
+                  </h2> */}
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={InventoryUpdated.src}
+                      alt="inventory-updated"
+                      className="w-4 h-4"
+                    />
+                    <h2 className="text-md font-semibold text-black">
+                      Inventory Updated
+                    </h2>
+                  </div>
+                  <ul className="space-y-3">
+                    {myLines.map((line, idx) => {
+                      const p = line.product;
+                      const name =
+                        p && typeof p === 'object' ? p.productName : 'Product';
+                      const qty = Number(line.quantity || 1);
+                      const stock =
+                        p && typeof p === 'object' ? Number(p.stock ?? 0) : 0;
+                      return (
+                        <li
+                          key={`${line.product?._id || idx}`}
+                          className="rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3"
+                        >
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            SKU: {formatSku(p)}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="text-xs font-semibold text-[#C10007] bg-[#FFE2E2] border border-[#FFA2A2] px-2 py-0.5 rounded">
+                              -{qty} unit{qty === 1 ? '' : 's'} reserved
+                            </span>
+                            {/* <span className="text-xs font-medium text-emerald-700">
+                              <span className="w-4 h-4 rounded-full bg-gray-600"></span>
+                              {stock} unit{stock === 1 ? '' : 's'} remaining
+                              (current stock)
+                            </span> */}
+                            <span className="text-xs font-medium text-emerald-700 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
+                              {stock} unit{stock === 1 ? '' : 's'} remaining
+                              (current stock)
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex items-start gap-2 rounded-lg bg-[#EFF6FF] border border-[#BEDBFF] px-3 py-2.5 text-xs text-[#193CB8]">
+                    <Info className="w-3 h-3 shrink-0 mt-0.5" />
+                    Stock was adjusted when the customer placed the order.
+                    Counts above reflect your current catalog stock.
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+                  <button
+                    type="button"
+                    disabled={!allChecked || kycBlocked}
+                    onClick={() => setAssignOpen(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl   bg-gradient-to-r from-[#16A34A] to-[#15803D] 
+  hover:from-[#15803D] hover:to-[#166534]
+ text-white text-sm font-bold disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    <Package className="w-5 h-5" />
+                    Mark as packed &amp; ready
+                    <CheckCircle2 className="w-5 h-5" />
+                  </button>
+                  {kycBlocked ? (
+                    <div className="flex items-start justify-start gap-2 mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span>
+                        <span className="font-semibold">Blocked:</span> Customer
+                        KYC is not complete. Packing cannot proceed until it is
+                        approved.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-start gap-2 mt-3 text-xs text-[#016630] bg-[#F0FDF4] border border-[#B9F8CF] rounded-lg px-3 py-2">
+                      <Truck className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span>
+                        <span className="font-semibold">Ready to ship!</span>{' '}
+                        This will notify the delivery partner and customer via
+                        SMS
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
+          </div>
+        </main>
+      </div>
+
+      <VendorAssignDeliveryModal
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        orderRef={orderRef}
+        customerShort={shortCustomerName(customerName)}
+        deliveryLine={deliveryLine}
+        packingChecklist={checklist}
+        submitting={submitting}
+        onMarkShipped={handleMarkShipped}
+      />
+    </div>
+  );
+}

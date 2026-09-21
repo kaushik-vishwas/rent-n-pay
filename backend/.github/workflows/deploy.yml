@@ -1,0 +1,69 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          envs: ENV_FILE
+          script: |
+            set -e
+
+            echo "Starting deployment..."
+
+            # Clone repo if not exists
+            if [ ! -d "$HOME/rentnpay-backend" ]; then
+              git clone git@github.com-delicod-backend:harsh-seekneo/rentnpay-backend.git $HOME/rentnpay-backend
+            fi
+
+            cd $HOME/rentnpay-backend
+
+            echo "Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "Creating .env file..."
+            printf "%s\n" "${ENV_FILE}" > .env
+
+            echo "Stopping old containers..."
+            docker-compose down || true
+
+            echo "Removing old containers..."
+            docker rm -f delicod-backend 2>/dev/null || true
+
+            echo "Building latest image..."
+            docker-compose build --no-cache
+
+            echo "Starting containers..."
+            docker-compose up -d
+
+            echo "Waiting for application..."
+            sleep 15
+
+            echo "Running container check..."
+            docker ps
+
+            echo "Checking backend..."
+            curl -f http://localhost:5000/api/health || exit 1
+
+            echo "Cleaning unused images..."
+            docker image prune -af
+
+            echo "Deployment completed successfully."

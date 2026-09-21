@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import 'leaflet/dist/leaflet.css';
+
+body {
+  @apply bg-gray-100 text-gray-900 antialiased;
+}
+
+/* Hide in-modal scrollbar while preserving scroll behavior */
+.vendor-login-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.vendor-login-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
