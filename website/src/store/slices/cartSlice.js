@@ -810,6 +810,34 @@ const cartSlice = createSlice({
     clearAppliedCoupon(state) {
       state.appliedCoupon = null;
     },
+    // Replace each item's saved tax snapshot with the latest subcategory
+    // tax from the server, so admin tax changes apply to existing carts.
+    // payload: { [productId]: subCategoryTax }
+    refreshItemTaxes(state, { payload }) {
+      if (!payload || typeof payload !== 'object') return;
+      let changed = false;
+      state.items.forEach((item) => {
+        const tax = payload[item.productId];
+        if (!tax || typeof tax !== 'object') return;
+        const next = {
+          defaultGst: tax.defaultGst ?? null,
+          defaultCareTax: tax.defaultCareTax ?? null,
+          defaultRepairWarranty: tax.defaultRepairWarranty ?? null,
+          defaultRelocationWarranty: tax.defaultRelocationWarranty ?? null,
+          defaultDeliveryPackaging: tax.defaultDeliveryPackaging ?? null,
+          defaultInstallationFee: tax.defaultInstallationFee ?? null,
+          defaultPlatformFee: tax.defaultPlatformFee ?? null,
+          taxBlocked: tax.taxBlocked ?? false,
+        };
+        Object.entries(next).forEach(([key, value]) => {
+          if (item[key] !== value) {
+            item[key] = value;
+            changed = true;
+          }
+        });
+      });
+      if (changed) saveCart(state.items);
+    },
   },
 });
 
@@ -823,5 +851,6 @@ export const {
   clearAppliedCoupon,
   syncCart,
   clearCart,
+  refreshItemTaxes,
 } = cartSlice.actions;
 export default cartSlice.reducer;

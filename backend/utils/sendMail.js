@@ -1850,6 +1850,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const VENDOR_PANEL_URL = (
+  process.env.VENDOR_PANEL_URL || 'https://rnp-admin.vercel.app'
+).replace(/\/+$/, '');
+
 // Create transporter once
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -2137,7 +2141,7 @@ export const sendVendorForgotPasswordOtp = async (email, otp) => {
             <p style="margin:0;font-size:13px;color:#F97316;">This code will expire in 5 minutes.</p>
           </div>
 
-          <a href="https://rent-npay-admin.vercel.app/vendor-main" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Reset Password Directly</a>
+          <a href="${VENDOR_PANEL_URL}/vendor-main" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Reset Password Directly</a>
 
           <p style="text-align:center;margin:0 0 20px 0;">
             <a href="https://rentnpay-website.vercel.app/contact" style="color:#374151;font-size:14px;text-decoration:underline;">Contact Support</a>
@@ -2873,7 +2877,7 @@ export const sendNewOrderEmail = async (email, vendorName, order, lines) => {
             </tbody>
           </table>
 
-          <a href="https://rent-npay-admin.vercel.app/vendor-main" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Accept &amp; Fulfill Order</a>
+          <a href="${VENDOR_PANEL_URL}/vendor/orders" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Accept &amp; Fulfill Order</a>
 
           <p style="text-align:center;margin:0 0 20px 0;">
             <a href="https://rentnpay-website.vercel.app/contact" style="color:#374151;font-size:14px;text-decoration:underline;">Contact Support</a>
@@ -3043,10 +3047,10 @@ export const sendProductApprovedEmail = async (email, vendorName, product) => {
             </tbody>
           </table>
 
-          <a href="https://rent-npay-admin.vercel.app/vendor-products" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">View Product in Inventory</a>
+          <a href="${VENDOR_PANEL_URL}/vendor-products" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">View Product in Inventory</a>
 
           <p style="text-align:center;margin:0 0 20px 0;">
-            <a href="https://rent-npay-admin.vercel.app/vendor-products" style="color:#374151;font-size:14px;text-decoration:underline;">Edit Product Listing</a>
+            <a href="${VENDOR_PANEL_URL}/vendor-products" style="color:#374151;font-size:14px;text-decoration:underline;">Edit Product Listing</a>
           </p>
         </div>
 
@@ -3453,7 +3457,7 @@ export const sendVendorKycRejectedEmail = async (
 
           ${reasonsList}
 
-          <a href="https://rent-npay-admin.vercel.app/vendor-main" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:20px 0 16px 0;">Resubmit Documents</a>
+          <a href="${VENDOR_PANEL_URL}/vendor-main" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:20px 0 16px 0;">Resubmit Documents</a>
 
           <p style="text-align:center;margin:0 0 20px 0;">
             <a href="https://rentnpay-website.vercel.app/contact" style="color:#374151;font-size:14px;text-decoration:underline;">Contact Support</a>
@@ -3527,7 +3531,7 @@ export const sendVendorKycReuploadRequestedEmail = async (
             </table>
           </div>
 
-          <a href="https://rent-npay-admin.vercel.app/vendor-kyc-status" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Resubmit Document</a>
+          <a href="${VENDOR_PANEL_URL}/vendor-kyc-status" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Resubmit Document</a>
 
           <p style="text-align:center;margin:0 0 20px 0;">
             <a href="https://rentnpay-website.vercel.app/contact" style="color:#374151;font-size:14px;text-decoration:underline;">Contact Support</a>
@@ -3606,7 +3610,7 @@ export const sendVendorKycApprovedEmail = async (email, vendorName) => {
             </table>
           </div>
 
-          <a href="https://rent-npay-admin.vercel.app/vendor-dashboard" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Go to Partner Dashboard</a>
+          <a href="${VENDOR_PANEL_URL}/vendor-dashboard" style="display:block;background:#F97316;color:#fff;text-align:center;text-decoration:none;font-weight:bold;padding:14px;border-radius:8px;margin:0 0 16px 0;">Go to Partner Dashboard</a>
 
           <p style="text-align:center;margin:0 0 20px 0;">
             <a href="https://rentnpay-website.vercel.app/contact" style="color:#374151;font-size:14px;text-decoration:underline;">Contact Support</a>

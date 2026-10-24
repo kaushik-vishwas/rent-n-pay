@@ -358,6 +358,11 @@ const VendorMain = () => {
 
   const closeModal = () => setModal(null);
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('login') === '1') {
+      setModal('login');
+    }
+  }, []);
+  useEffect(() => {
     apiGetVendorsPublicCount()
       .then((res) => setVendorCount(res.data?.totalVendors || 0))
       .catch(() => setVendorCount(0));

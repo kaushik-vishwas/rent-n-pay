@@ -403,7 +403,12 @@ const VendorLogin = ({ onClose, onSignup, onForgotPassword }) => {
         autoClose: 2000,
         theme: 'light',
       });
-      setTimeout(() => router.push('/vendor-dashboard'), 2000);
+      const next = new URLSearchParams(window.location.search).get('next');
+      const target =
+        next && next.startsWith('/') && !next.startsWith('//')
+          ? next
+          : '/vendor-dashboard';
+      setTimeout(() => router.push(target), 2000);
     }
   }, [isAuthenticated, router]);
 

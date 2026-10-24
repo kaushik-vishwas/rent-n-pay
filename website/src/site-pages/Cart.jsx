@@ -7735,6 +7735,7 @@ import {
   syncCart,
   clearAppliedCoupon,
   setAppliedCoupon,
+  refreshItemTaxes,
 } from '../store/slices/cartSlice';
 import {
   apiGetActiveCoupons,
@@ -9706,19 +9707,23 @@ const Cart = () => {
                 ? Number(res.data.product.stock)
                 : 0,
             deliveryLabel: getDeliveryTimelineLabel(res.data?.product),
+            tax: res.data?.product?.subCategoryTax || null,
           }))
-          .catch(() => ({ id, stock: 0, deliveryLabel: '' })),
+          .catch(() => ({ id, stock: 0, deliveryLabel: '', tax: null })),
       ),
     ).then((pairs) => {
       if (cancelled) return;
       const nextStock = {};
       const nextDelivery = {};
+      const nextTax = {};
       pairs.forEach((p) => {
         nextStock[p.id] = p.stock;
         nextDelivery[p.id] = p.deliveryLabel;
+        if (p.tax) nextTax[p.id] = p.tax;
       });
       setStockByProductId(nextStock);
       setDeliveryByProductId(nextDelivery);
+      if (Object.keys(nextTax).length) dispatch(refreshItemTaxes(nextTax));
     });
 
     return () => {

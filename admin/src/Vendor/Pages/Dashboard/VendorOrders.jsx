@@ -9982,8 +9982,10 @@ import {
   resolveVendorOrderLineDisplayAmount,
   resolveVendorOrderLineProductAmount,
 } from '../../utils/vendorPayout';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { vendorLogout } from '../../../redux/slices/vendorSlice';
 import VendorReturnRequestedModal from '../../Components/Modals/VendorReturnRequestedModal';
 import VendorNewOrderModal from '../../Components/Modals/VendorNewOrderModal';
 import jsPDF from 'jspdf';
@@ -12498,6 +12500,8 @@ function OrderDetailsModal({
 }
 
 export default function VendorOrdersPage() {
+  const dispatch = useDispatch();
+  const router = useRouter();
   const { user, token } = useSelector((s) => s.vendor);
   const [orders, setOrders] = useState([]);
   const [serviceBookings, setServiceBookings] = useState([]);
@@ -12585,9 +12589,15 @@ export default function VendorOrdersPage() {
       (typeof window !== 'undefined'
         ? localStorage.getItem('vendorToken')
         : null);
+    const redirectToLogin = async () => {
+      await dispatch(vendorLogout());
+      router.replace('/vendor-main?login=1&next=/vendor/orders');
+    };
+
     if (!authToken) {
       setError('Please login again to continue.');
       setLoading(false);
+      redirectToLogin();
       return;
     }
 
@@ -12605,6 +12615,11 @@ export default function VendorOrdersPage() {
         buildCategoryRateMap(Array.isArray(catRes.data) ? catRes.data : []),
       );
     } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        redirectToLogin();
+        return;
+      }
       setOrders([]);
       setServiceBookings([]);
       setError(err.response?.data?.message || 'Failed to load orders.');

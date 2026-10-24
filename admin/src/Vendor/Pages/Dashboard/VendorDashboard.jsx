@@ -2180,6 +2180,11 @@ const VendorDashboardPage = () => {
   const [serviceBookingModalId, setServiceBookingModalId] = useState(null);
   const [categoryRateMap, setCategoryRateMap] = useState({});
 
+  const redirectToLogin = async () => {
+    await dispatch(vendorLogout());
+    router.replace('/vendor-main?login=1');
+  };
+
   useEffect(() => {
     const token =
       typeof window !== 'undefined'
@@ -2187,6 +2192,7 @@ const VendorDashboardPage = () => {
         : null;
     if (!token) {
       setLoading(false);
+      redirectToLogin();
       return;
     }
     let cancelled = false;
@@ -2225,8 +2231,13 @@ const VendorDashboardPage = () => {
           buildCategoryRateMap(Array.isArray(catRes?.data) ? catRes.data : []),
         );
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          redirectToLogin();
+          return;
+        }
         setProducts([]);
         setServiceProducts([]);
         setOrders([]);
